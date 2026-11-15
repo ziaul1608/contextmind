@@ -158,7 +158,7 @@ Follow these step-by-step instructions to clone, configure, and run ContextMind 
 ### Step 1 — Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/ziaul1608/contextmind.git
 ```
 
 ### Step 2 — Enter the Project Directory

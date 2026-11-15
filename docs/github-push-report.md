@@ -17,7 +17,8 @@ As specified by the Phase 7 instructions, no Git remote was previously configure
 
 ## 2. Git Status & Commit Details
 
-- **Branch Name**: `master`
+- **GitHub Repository URL**: `https://github.com/ziaul1608/contextmind.git`
+- **Branch Name**: `main` (and `master`)
 - **Commit Hash**: `c5348ea3e0398d4bbd6cca465b88e3cfd226c7d3` (root commit)
 - **Commit Date**: Sun Nov 15 19:55:15 2026 +0530
 - **Commit Message**:
