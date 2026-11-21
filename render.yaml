@@ -3,10 +3,12 @@ services:
     name: contextmind-backend
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build --workspace=shared && npm run build --workspace=server
+    buildCommand: npm ci --include=dev && npm run build --workspace=shared && npm run build --workspace=server
     startCommand: cd server && npx prisma migrate deploy && node dist/index.js
     healthCheckPath: /api/v1/health
     envVars:
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
       - key: NODE_VERSION
         value: 20
       - key: NODE_ENV
