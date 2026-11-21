@@ -14,8 +14,9 @@ async function main(): Promise<void> {
 
   const app = createApp();
 
-  const server = app.listen(env.PORT, '127.0.0.1', () => {
-    console.log(`[ContextMind] Server running on http://127.0.0.1:${env.PORT} (${env.NODE_ENV})`);
+  const host = process.env.HOST || '0.0.0.0';
+  const server = app.listen(env.PORT, host, () => {
+    console.log(`[ContextMind] Server running on http://${host}:${env.PORT} (${env.NODE_ENV})`);
   });
 
   // Graceful shutdown
