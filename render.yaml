@@ -20,7 +20,7 @@ services:
       - key: AI_PROVIDER
         value: groq
       - key: GROQ_MODEL
-        value: openai/gpt-oss-120b
+        value: qwen/qwen3.8-27b
       - key: DATABASE_URL
         sync: false
       - key: GROQ_API_KEY

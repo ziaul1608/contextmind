@@ -106,6 +106,7 @@ export interface OllamaChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   tool_calls?: OllamaToolCall[];
+  tool_call_id?: string;
 }
 
 export interface OllamaStreamResult {
@@ -140,7 +141,7 @@ function getBaseUrl(): string {
 
 function getModelName(): string {
   if (isGroqMode()) {
-    return env.GROQ_MODEL || 'openai/gpt-oss-120b';
+    return env.GROQ_MODEL || 'qwen/qwen3.8-27b';
   }
   return env.OLLAMA_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 }
@@ -376,7 +377,7 @@ export const ollamaService = {
           fullMessages.push({
             role: 'tool',
             content: m.content,
-            tool_call_id: (m as unknown as Record<string, unknown>).tool_call_id || 'call_web_search',
+            tool_call_id: m.tool_call_id || 'call_web_search',
           });
         } else if (m.tool_calls && m.tool_calls.length > 0) {
           fullMessages.push({
@@ -415,6 +416,7 @@ export const ollamaService = {
             parameters: t.function.parameters,
           },
         }));
+        payload.tool_choice = 'auto';
       }
 
       const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {

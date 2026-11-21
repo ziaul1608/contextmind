@@ -266,6 +266,7 @@ export const agentService = {
                 messages.push({
                   role: 'tool',
                   content: toolResultText,
+                  tool_call_id: toolCall.id,
                 });
               } else {
                 // Graceful fallback on search failure
@@ -274,6 +275,7 @@ export const agentService = {
                 messages.push({
                   role: 'tool',
                   content: `Web search is temporarily unavailable (${searchErrorMessage}). Please answer the user question using your existing knowledge and mention that live search is currently unavailable.`,
+                  tool_call_id: toolCall.id,
                 });
               }
             }
