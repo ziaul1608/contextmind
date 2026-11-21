@@ -140,7 +140,7 @@ function getBaseUrl(): string {
 
 function getModelName(): string {
   if (isGroqMode()) {
-    return env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+    return env.GROQ_MODEL || 'openai/gpt-oss-120b';
   }
   return env.OLLAMA_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 }

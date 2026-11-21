@@ -66,8 +66,8 @@ const envSchema = z.object({
     .transform((val) => (val === '' ? undefined : val)),
   GROQ_MODEL: z
     .string()
-    .default('llama-3.3-70b-versatile')
-    .transform((val) => (val === '' ? 'llama-3.3-70b-versatile' : val)),
+    .default('openai/gpt-oss-120b')
+    .transform((val) => (val === '' ? 'openai/gpt-oss-120b' : val)),
   TAVILY_API_KEY: z
     .string()
     .optional()
