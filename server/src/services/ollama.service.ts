@@ -117,6 +117,7 @@ export interface OllamaStreamResult {
 }
 
 export interface OllamaHealthStatus {
+  provider?: 'ollama' | 'groq';
   reachable: boolean;
   modelInstalled: boolean;
   installedModels: string[];
@@ -124,15 +125,141 @@ export interface OllamaHealthStatus {
   error?: string;
 }
 
+function isGroqMode(): boolean {
+  if (env.AI_PROVIDER === 'groq') return true;
+  if (env.AI_PROVIDER === 'ollama') return false;
+  return Boolean(env.GROQ_API_KEY && env.GROQ_API_KEY.trim().length > 0);
+}
+
 function getBaseUrl(): string {
+  if (isGroqMode()) {
+    return 'https://api.groq.com/openai/v1';
+  }
   return env.OLLAMA_BASE_URL || process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 }
 
 function getModelName(): string {
+  if (isGroqMode()) {
+    return env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  }
   return env.OLLAMA_MODEL || process.env.OLLAMA_MODEL || 'qwen2.5:3b';
 }
 
+async function checkGroqHealth(): Promise<OllamaHealthStatus> {
+  const currentModel = getModelName();
+  if (!env.GROQ_API_KEY || !env.GROQ_API_KEY.trim()) {
+    return {
+      provider: 'groq',
+      reachable: false,
+      modelInstalled: false,
+      installedModels: [],
+      currentModel,
+      error: 'GROQ_API_KEY is not configured',
+    };
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const resp = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: {
+        Authorization: `Bearer ${env.GROQ_API_KEY}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) {
+      return {
+        provider: 'groq',
+        reachable: false,
+        modelInstalled: false,
+        installedModels: [],
+        currentModel,
+        error: `Groq returned status ${resp.status}`,
+      };
+    }
+
+    const data = (await resp.json()) as { data?: Array<{ id: string }> };
+    const installedModels = (data.data || []).map((m) => m.id);
+
+    return {
+      provider: 'groq',
+      reachable: true,
+      modelInstalled: true,
+      installedModels,
+      currentModel,
+    };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return {
+      provider: 'groq',
+      reachable: false,
+      modelInstalled: false,
+      installedModels: [],
+      currentModel,
+      error: errMsg,
+    };
+  }
+}
+
+async function checkOllamaHealth(): Promise<OllamaHealthStatus> {
+  const baseUrl = getBaseUrl();
+  const currentModel = getModelName();
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    const resp = await fetch(`${baseUrl}/api/tags`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!resp.ok) {
+      return {
+        provider: 'ollama',
+        reachable: false,
+        modelInstalled: false,
+        installedModels: [],
+        currentModel,
+        error: `Ollama returned status ${resp.status}`,
+      };
+    }
+
+    const data = (await resp.json()) as { models?: Array<{ name: string; model?: string }> };
+    const installedModels = (data.models || []).map((m) => m.name);
+
+    const normalizedCurrent = currentModel.includes(':') ? currentModel : `${currentModel}:latest`;
+    const modelInstalled = installedModels.some(
+      (m) => m === currentModel || m === normalizedCurrent || m.startsWith(`${currentModel}:`),
+    );
+
+    return {
+      provider: 'ollama',
+      reachable: true,
+      modelInstalled,
+      installedModels,
+      currentModel,
+    };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return {
+      provider: 'ollama',
+      reachable: false,
+      modelInstalled: false,
+      installedModels: [],
+      currentModel,
+      error: errMsg,
+    };
+  }
+}
+
 export const ollamaService = {
+  getProvider(): 'ollama' | 'groq' {
+    return isGroqMode() ? 'groq' : 'ollama';
+  },
+
   getBaseUrl(): string {
     return getBaseUrl();
   },
@@ -141,74 +268,63 @@ export const ollamaService = {
     return getModelName();
   },
 
-  /**
-   * Health and connectivity check to Ollama daemon and local model repository.
-   */
   async checkHealth(): Promise<OllamaHealthStatus> {
-    const baseUrl = getBaseUrl();
-    const currentModel = getModelName();
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000);
-
-      const resp = await fetch(`${baseUrl}/api/tags`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-
-      if (!resp.ok) {
-        return {
-          reachable: false,
-          modelInstalled: false,
-          installedModels: [],
-          currentModel,
-          error: `Ollama returned status ${resp.status}`,
-        };
-      }
-
-      const data = (await resp.json()) as { models?: Array<{ name: string; model?: string }> };
-      const installedModels = (data.models || []).map((m) => m.name);
-
-      // Check if currentModel or currentModel:latest is in the list
-      const normalizedCurrent = currentModel.includes(':') ? currentModel : `${currentModel}:latest`;
-      const modelInstalled = installedModels.some(
-        (m) => m === currentModel || m === normalizedCurrent || m.startsWith(`${currentModel}:`),
-      );
-
-      return {
-        reachable: true,
-        modelInstalled,
-        installedModels,
-        currentModel,
-      };
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      return {
-        reachable: false,
-        modelInstalled: false,
-        installedModels: [],
-        currentModel,
-        error: errMsg,
-      };
+    if (isGroqMode()) {
+      return checkGroqHealth();
     }
+    return checkOllamaHealth();
   },
 
   isConfigured(): boolean {
-    return true; // Local Ollama does not require paid API keys
+    if (isGroqMode()) {
+      return Boolean(env.GROQ_API_KEY && env.GROQ_API_KEY.trim().length > 0);
+    }
+    return true;
   },
 
-  /**
-   * Non-streaming completion (used e.g. for background rolling summary).
-   */
   async generateCompletion(
     messages: OllamaChatMessage[],
     systemPrompt?: string,
     abortSignal?: AbortSignal,
   ): Promise<string> {
-    const baseUrl = getBaseUrl();
     const model = getModelName();
 
+    if (isGroqMode()) {
+      const fullMessages: Array<{ role: string; content: string }> = [];
+      if (systemPrompt) {
+        fullMessages.push({ role: 'system', content: systemPrompt });
+      }
+      for (const m of messages) {
+        fullMessages.push({ role: m.role, content: m.content });
+      }
+
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: fullMessages,
+          stream: false,
+          temperature: 0.2,
+        }),
+        signal: abortSignal,
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        throw new Error(`Groq completion error (${resp.status}): ${errText || resp.statusText}`);
+      }
+
+      const json = (await resp.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      return json.choices?.[0]?.message?.content || '';
+    }
+
+    const baseUrl = getBaseUrl();
     const fullMessages: OllamaChatMessage[] = [];
     if (systemPrompt) {
       fullMessages.push({ role: 'system', content: systemPrompt });
@@ -241,10 +357,6 @@ export const ollamaService = {
     return json.message?.content || '';
   },
 
-  /**
-   * Streams a single turn to Ollama with optional native tool definitions.
-   * Emits onText for incremental text deltas and returns assembled fullText + toolCalls.
-   */
   async streamTurn(
     messages: OllamaChatMessage[],
     tools: OllamaTool[] | undefined,
@@ -252,9 +364,165 @@ export const ollamaService = {
     abortSignal?: AbortSignal,
     systemPrompt?: string,
   ): Promise<OllamaStreamResult> {
-    const baseUrl = getBaseUrl();
     const model = getModelName();
 
+    if (isGroqMode()) {
+      const fullMessages: Array<Record<string, unknown>> = [];
+      if (systemPrompt) {
+        fullMessages.push({ role: 'system', content: systemPrompt });
+      }
+      for (const m of messages) {
+        if (m.role === 'tool') {
+          fullMessages.push({
+            role: 'tool',
+            content: m.content,
+            tool_call_id: (m as unknown as Record<string, unknown>).tool_call_id || 'call_web_search',
+          });
+        } else if (m.tool_calls && m.tool_calls.length > 0) {
+          fullMessages.push({
+            role: 'assistant',
+            content: m.content || null,
+            tool_calls: m.tool_calls.map((tc, idx) => ({
+              id: tc.id || `call_${idx}`,
+              type: 'function',
+              function: {
+                name: tc.function.name,
+                arguments:
+                  typeof tc.function.arguments === 'string'
+                    ? tc.function.arguments
+                    : JSON.stringify(tc.function.arguments),
+              },
+            })),
+          });
+        } else {
+          fullMessages.push({ role: m.role, content: m.content });
+        }
+      }
+
+      const payload: Record<string, unknown> = {
+        model,
+        messages: fullMessages,
+        stream: true,
+        temperature: 0.3,
+      };
+
+      if (tools && tools.length > 0) {
+        payload.tools = tools.map((t) => ({
+          type: 'function',
+          function: {
+            name: t.function.name,
+            description: t.function.description,
+            parameters: t.function.parameters,
+          },
+        }));
+      }
+
+      const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify(payload),
+        signal: abortSignal,
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => '');
+        throw new Error(`Groq API error (${resp.status}): ${errText || resp.statusText}`);
+      }
+
+      const reader = resp.body?.getReader();
+      if (!reader) {
+        throw new Error('No readable stream returned by Groq.');
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let fullText = '';
+      const accumulatedToolCalls: Map<number, { id: string; name: string; args: string }> = new Map();
+      let promptTokens = 0;
+      let completionTokens = 0;
+
+      try {
+        while (true) {
+          if (abortSignal?.aborted) break;
+
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue;
+            if (trimmed === 'data: [DONE]') break;
+            if (!trimmed.startsWith('data: ')) continue;
+
+            const jsonStr = trimmed.slice(6);
+            try {
+              const chunk = JSON.parse(jsonStr);
+              if (chunk.usage) {
+                promptTokens = chunk.usage.prompt_tokens || 0;
+                completionTokens = chunk.usage.completion_tokens || 0;
+              }
+
+              const delta = chunk.choices?.[0]?.delta;
+              if (delta?.content) {
+                fullText += delta.content;
+                callbacks.onText(delta.content);
+              }
+
+              if (delta?.tool_calls && Array.isArray(delta.tool_calls)) {
+                for (const tc of delta.tool_calls) {
+                  const idx = tc.index ?? 0;
+                  const existing = accumulatedToolCalls.get(idx) || { id: '', name: '', args: '' };
+                  if (tc.id) existing.id = tc.id;
+                  if (tc.function?.name) existing.name += tc.function.name;
+                  if (tc.function?.arguments) existing.args += tc.function.arguments;
+                  accumulatedToolCalls.set(idx, existing);
+                }
+              }
+            } catch {
+              // ignore parse errors on malformed chunks
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const parsedToolCalls: OllamaToolCall[] = [];
+      for (const [, item] of accumulatedToolCalls.entries()) {
+        let parsedArgs: Record<string, unknown> = {};
+        try {
+          parsedArgs = JSON.parse(item.args);
+        } catch {
+          parsedArgs = { query: item.args };
+        }
+        parsedToolCalls.push({
+          id: item.id || `call_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          type: 'function',
+          function: {
+            name: item.name || 'web_search',
+            arguments: parsedArgs,
+          },
+        });
+      }
+
+      return {
+        fullText,
+        toolCalls: parsedToolCalls,
+        inputTokens: promptTokens,
+        outputTokens: completionTokens,
+        model,
+      };
+    }
+
+    // Default: Local Ollama mode
+    const baseUrl = getBaseUrl();
     const fullMessages: OllamaChatMessage[] = [];
     if (systemPrompt) {
       fullMessages.push({ role: 'system', content: systemPrompt });
@@ -332,7 +600,6 @@ export const ollamaService = {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        // Keep incomplete line in buffer
         buffer = lines.pop() ?? '';
 
         for (const line of lines) {
@@ -367,13 +634,11 @@ export const ollamaService = {
           if (chunk.prompt_eval_count) promptEvalCount = chunk.prompt_eval_count;
           if (chunk.eval_count) evalCount = chunk.eval_count;
 
-          // Process incremental text content
           if (chunk.message?.content) {
             fullText += chunk.message.content;
             callbacks.onText(chunk.message.content);
           }
 
-          // Process tool calls if present
           if (chunk.message?.tool_calls && chunk.message.tool_calls.length > 0) {
             for (const tc of chunk.message.tool_calls) {
               if (tc.function) {

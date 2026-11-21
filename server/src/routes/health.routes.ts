@@ -14,16 +14,20 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
     dbStatus = 'down';
   }
 
-  const ollamaHealth = await ollamaService.checkHealth();
-  const isHealthy = dbStatus === 'up' && ollamaHealth.reachable;
+  const aiHealth = await ollamaService.checkHealth();
+  const isHealthy = dbStatus === 'up' && aiHealth.reachable;
+  const provider = aiHealth.provider;
 
   res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? 'ok' : 'degraded',
     db: dbStatus,
     providers: {
-      ollama: ollamaHealth.reachable,
-      ollamaModel: ollamaHealth.currentModel,
-      modelInstalled: ollamaHealth.modelInstalled,
+      aiProvider: provider,
+      ollama: provider === 'ollama' ? aiHealth.reachable : false,
+      ollamaModel: provider === 'ollama' ? aiHealth.currentModel : undefined,
+      modelInstalled: aiHealth.modelInstalled,
+      groq: provider === 'groq' ? aiHealth.reachable : false,
+      groqModel: provider === 'groq' ? aiHealth.currentModel : undefined,
       tavily: webSearchService.isConfigured(),
     },
     timestamp: new Date().toISOString(),

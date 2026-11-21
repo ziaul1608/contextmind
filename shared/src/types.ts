@@ -128,9 +128,12 @@ export interface HealthResponse {
   status: 'ok' | 'degraded';
   db: 'up' | 'down';
   providers?: {
+    aiProvider?: 'ollama' | 'groq';
     ollama: boolean;
     ollamaModel?: string;
     modelInstalled?: boolean;
+    groq?: boolean;
+    groqModel?: string;
     tavily: boolean;
   };
   timestamp: string;

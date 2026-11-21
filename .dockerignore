@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+.env.*
+!.env.example
+client/src
+client/public
+docs
+coverage
+*.log
+.DS_Store

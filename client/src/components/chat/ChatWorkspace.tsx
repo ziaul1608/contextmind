@@ -20,9 +20,12 @@ interface ChatWorkspaceProps {
   onSelectPrompt: (prompt: string) => void;
   onOpenMemories?: () => void;
   providers?: {
+    aiProvider?: 'ollama' | 'groq';
     ollama?: boolean;
     ollamaModel?: string;
     modelInstalled?: boolean;
+    groq?: boolean;
+    groqModel?: string;
     tavily?: boolean;
   };
 }
@@ -53,8 +56,31 @@ export function ChatWorkspace({
   }, [messages, streamingText, statusPhase, streamingSources]);
 
   const hasMessages = messages.length > 0 || isStreaming;
+  const isGroq = providers?.aiProvider === 'groq';
+  const isGroqConnected = Boolean(providers?.groq);
   const isOllamaConnected = Boolean(providers?.ollama && providers?.modelInstalled);
   const isOllamaRunningWithoutModel = Boolean(providers?.ollama && !providers?.modelInstalled);
+  const isAiConnected = isGroq ? isGroqConnected : isOllamaConnected;
+
+  const aiBadgeLabel = isGroq
+    ? isGroqConnected
+      ? `Cloud AI (Groq · ${providers?.groqModel || 'llama-3.3-70b'}): Connected`
+      : 'Cloud AI (Groq): Offline'
+    : isOllamaConnected
+      ? `Local AI (Ollama · ${providers?.ollamaModel || 'qwen2.5:3b'}): Connected`
+      : isOllamaRunningWithoutModel
+        ? `Ollama: Model ${providers?.ollamaModel} not installed`
+        : 'Local AI (Ollama): Offline';
+
+  const aiTooltip = isGroq
+    ? isGroqConnected
+      ? `Ultra-fast inference via Groq Cloud (${providers?.groqModel || 'llama-3.3-70b'})`
+      : 'Groq API is unreachable or invalid'
+    : isOllamaConnected
+      ? `Local model ${providers?.ollamaModel || 'qwen2.5:3b'} is running via Ollama`
+      : isOllamaRunningWithoutModel
+        ? `Model ${providers?.ollamaModel} is not installed`
+        : 'Ollama daemon is not reachable at 127.0.0.1:11434';
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-gray-950 overflow-hidden relative">
@@ -67,19 +93,10 @@ export function ChatWorkspace({
               {activeTitle || 'New Conversation'}
             </h2>
             <div className="flex items-center gap-2 text-[10px] font-mono mt-0.5">
-              <span
-                className="flex items-center gap-1.5"
-                title={
-                  isOllamaConnected
-                    ? `Local model ${providers?.ollamaModel || 'qwen2.5:3b'} is running via Ollama`
-                    : isOllamaRunningWithoutModel
-                      ? `Model ${providers?.ollamaModel} is not installed`
-                      : 'Ollama daemon is not reachable at 127.0.0.1:11434'
-                }
-              >
+              <span className="flex items-center gap-1.5" title={aiTooltip}>
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
-                    isOllamaConnected
+                    isAiConnected
                       ? 'bg-emerald-400'
                       : isOllamaRunningWithoutModel
                         ? 'bg-amber-400'
@@ -88,18 +105,14 @@ export function ChatWorkspace({
                 />
                 <span
                   className={
-                    isOllamaConnected
+                    isAiConnected
                       ? 'text-gray-300'
                       : isOllamaRunningWithoutModel
                         ? 'text-amber-400/90'
                         : 'text-red-400/90'
                   }
                 >
-                  {isOllamaConnected
-                    ? `Local AI (Ollama · ${providers?.ollamaModel || 'qwen2.5:3b'}): Connected`
-                    : isOllamaRunningWithoutModel
-                      ? `Ollama: Model ${providers?.ollamaModel} not installed`
-                      : 'Local AI (Ollama): Offline'}
+                  {aiBadgeLabel}
                 </span>
               </span>
               <span className="text-gray-700">·</span>

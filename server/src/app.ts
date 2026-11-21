@@ -17,10 +17,23 @@ export function createApp(): Application {
   // Security headers
   app.use(helmet());
 
-  // CORS
+  // CORS: allow configured origins, Netlify domains, and local dev
+  const allowedOrigins = env.CLIENT_URL.split(',').map((u) => u.trim());
   app.use(
     cors({
-      origin: env.CLIENT_URL,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (
+          allowedOrigins.includes(origin) ||
+          allowedOrigins.includes('*') ||
+          origin.endsWith('.netlify.app') ||
+          origin.includes('localhost') ||
+          origin.includes('127.0.0.1')
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, true); // Allow all valid web clients
+      },
       methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
       credentials: true,

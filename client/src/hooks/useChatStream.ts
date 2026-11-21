@@ -22,7 +22,8 @@ export interface StreamingMessageState {
   error: string | null;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1';
+const RAW_API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const API_BASE_URL = RAW_API_BASE.replace(/\/+$/, '');
 
 export function useChatStream(
   conversationId: string | null,

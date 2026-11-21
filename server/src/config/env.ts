@@ -39,11 +39,15 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url('DATABASE_URL must be a valid connection string'),
   PORT: z.coerce.number().int().positive().default(5000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  CLIENT_URL: z.string().url('CLIENT_URL must be a valid URL').default('http://localhost:5173'),
+  CLIENT_URL: z
+    .string()
+    .default('http://localhost:5173')
+    .transform((val) => (val === '' ? 'http://localhost:5173' : val)),
   WORKSPACE_ID: z
     .string()
     .optional()
     .transform((val) => (val === '' ? undefined : val)),
+  // Local Ollama Configuration
   OLLAMA_BASE_URL: z
     .string()
     .url('OLLAMA_BASE_URL must be a valid URL')
@@ -52,6 +56,18 @@ const envSchema = z.object({
     .string()
     .default('qwen2.5:3b')
     .transform((val) => (val === '' ? 'qwen2.5:3b' : val)),
+  // Cloud AI Provider (Groq - 100% Free Cloud LLM for Production Deployment)
+  AI_PROVIDER: z
+    .enum(['auto', 'ollama', 'groq'])
+    .default('auto'),
+  GROQ_API_KEY: z
+    .string()
+    .optional()
+    .transform((val) => (val === '' ? undefined : val)),
+  GROQ_MODEL: z
+    .string()
+    .default('llama-3.3-70b-versatile')
+    .transform((val) => (val === '' ? 'llama-3.3-70b-versatile' : val)),
   TAVILY_API_KEY: z
     .string()
     .optional()
