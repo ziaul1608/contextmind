@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: contextmind-backend
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build --workspace=shared && npm run build --workspace=server
+    startCommand: cd server && npx prisma migrate deploy && node dist/index.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: CLIENT_URL
+        value: https://contextmind-ai.netlify.app
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
